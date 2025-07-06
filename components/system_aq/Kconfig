@@ -1,0 +1,11 @@
+menu "Configuración del Sistema"
+
+    config BIOS_MENU_ENABLED
+        bool "Habilitar menú de configuración BIOS (interactivo por consola)"
+        default y
+        help
+            Si se activa, el sistema mostrará un menú interactivo al inicio
+            para modificar la configuración almacenada en NVS.
+    
+    endmenu
+    

@@ -1,0 +1,57 @@
+# ▓▓▓ ESP-IDF BUILD FILES ▓▓▓
+build/
+*.elf
+*.bin
+*.map
+*.hex
+*.log
+*.pyc
+*.pyo
+*.pyd
+*.gcda
+*.gcno
+*.gcov
+*.cproject
+*.project
+*.gdbinit
+*.orig
+*.o
+*.d
+*.a
+*.ld
+
+# ESP-IDF config files (no versionar si no son compartidos)
+sdkconfig
+sdkconfig.old
+sdkconfig.defaults
+
+# Flash artifacts
+flash_project_args
+partition_table/
+
+# ▓▓▓ Python virtualenv ▓▓▓
+venv/
+ENV/
+env/
+*.egg-info/
+__pycache__/
+pip-wheel-metadata/
+dist/
+.eggs/
+.eggs-info/
+
+# ▓▓▓ VSCode and Editor config ▓▓▓
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ▓▓▓ OS-specific ▓▓▓
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ▓▓▓ Codex CLI local context ▓▓▓
+.codex-history.json
+
+managed_components/
