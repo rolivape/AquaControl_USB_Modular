@@ -24,6 +24,8 @@ build/
 sdkconfig
 sdkconfig.old
 sdkconfig.defaults
+sdkconfig.ci
+sdkconfig.frag     # ← nuevo: fragmento temporal no versionado
 
 # Flash artifacts
 flash_project_args
@@ -32,6 +34,7 @@ partition_table/
 # ▓▓▓ Python virtualenv ▓▓▓
 venv/
 ENV/
+.env
 env/
 *.egg-info/
 __pycache__/
@@ -51,7 +54,17 @@ dist/
 Thumbs.db
 desktop.ini
 
-# ▓▓▓ Codex CLI local context ▓▓▓
+# ▓▓▓ Codex CLI & Gemini artifacts ▓▓▓
 .codex-history.json
+.gemini/
+.gemini-history.json
 
+# ▓▓▓ Archivos de trabajo no permanentes ▓▓▓
+update.patch           # ← lo puedes regenerar si hace falta
+tasks/                 # ← parece contener tareas temporales o salidas de pruebas
+*.bak                  # ← archivos renombrados para debug
+
+# ▓▓▓ Documentación derivada no oficial ▓▓▓
+docs/README2.md        # ← si README2 es solo transición o backup
+usb_cdc_lecciones.md   # ← si este es auxiliar y ya está integrado en README.md
 managed_components/

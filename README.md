@@ -144,3 +144,181 @@ esp32_firmware/
 │   └── main.c
 ├── sdkconfig
 ├── CMakeLists.txt
+
+## ⏱ Flujo de Ejecución: Desde Boot hasta Lógica Funcional
+
+### 🔁 Flujo de ejecución completo – desde boot hasta operación
+
+---
+
+## 🧷 0. Bootloader y particiones
+- ESP32-S3 inicia desde la partición `bootloader`.
+- Revisa partición de `factory` o `ota_0` (si aplica).
+- Carga el firmware principal desde `0x10000`.
+- Inicializa SPI Flash, RNG, eFuse, etc.
+- Muestra tabla de particiones y pasa el control a `app_main()`.
+
+---
+
+## 🟢 1. app_main() (en `main/main.c`)
+- Solo invoca `system_init_aq()` respetando la política de main mínimo.
+
+---
+
+## 🧠 2. system_init_aq() (en `system_aq.c`)
+Contiene toda la lógica de preparación del sistema:
+
+```c
+void system_init_aq(void)
+{
+    nvs_init_aq();                      // 🔹 Init robusto de NVS
+    bios_config_init_aq();             // 🔹 Carga configuración desde NVS
+    bios_config_check_or_menu_aq();    // 🔹 Ofrece menú interactivo si hay input
+    bios_config_print_aq();            // 🔹 Muestra configuración cargada
+
+    ncm_aq_init();                     // 🔹 Inicializa USB NCM (si está habilitado)
+    mqtt_client_aq_init();            // 🔹 Arranca cliente MQTT (si aplica)
+    wifi_client_aq_init();            // 🔹 (si el panel lo requiere)
+
+    hw_control_init();                // 🔹 Inicializa capa HW según panel
+    logic_manager_init();            // 🔹 FSM o lógica embebida
+}
+```
+
+---
+
+## 🧩 3. bios_config_aq/: Configuración persistente
+- Carga o genera `bios_config_t` con:
+  - IP, Netmask, Gateway
+  - `enable_ncm`, `enable_wifi`, `enable_mqtt`
+- Ofrece menú tipo BIOS si se detecta input UART al boot.
+
+---
+
+## 🔌 4. ncm_aq/: Comunicación USB (CDC/NCM)
+- Si `enable_ncm == true`, se habilita NCM como interfaz virtual de red.
+- Permite hacer `ping` desde RPi vía USB.
+
+---
+
+## 📡 5. mqtt_client_aq/ y wifi_client_aq/
+- MQTT se inicializa y suscribe a tópicos.
+- WiFi sólo si está habilitado (más común en Panel I/O).
+
+---
+
+## ⚙️ 6. hw_control/: Abstracción hardware
+- Detecta panel activo (AC, DC, IO).
+- Llama al `panel_ac_init()` o `panel_dc_init()`.
+- Cada uno implementa GPIOs, relés, sensores y lógica SAFE local.
+
+---
+
+## 🧠 7. logic/: Control embebido
+- Aquí vivirá el FSM del panel.
+- Puede actuar sobre eventos, sensores, comandos, etc.
+
+---
+
+## 🧾 8. json/ y rol_manager/
+- `json_parser_aq`: Parser de mensajes JSON entrantes.
+- `rol_manager`: Gestiona identidad, rol y tipo de módulo.
+
+---
+
+✅ Resultado final:
+El ESP32 queda activo con configuración cargada, comunicaciones inicializadas y panel operativo.
+
+
+AquaControl_USB_Modular
+
+Sistema modular de automatización para acuarios marinos basado en ESP32-S3 + Raspberry Pi. La arquitectura es 100% local, sin dependencia de la nube, y permite control, automatización y monitoreo a través de mensajes JSON sobre USB-CDC o MQTT.
+
+🧠 Arquitectura General
+	•	ESP32-S3: Módulos esclavos (AC, DC, IO…) conectados por USB-CDC o Wi-Fi.
+	•	RPi (MASTER): Controlador central. Procesa comandos, guarda logs, muestra dashboards.
+	•	Protocolo: JSON validado, MQTT como bus interno de eventos.
+
+🔌 Comunicación USB-CDC (esp_tinyusb)
+
+Implementación correcta:
+
+Utilizamos esp_tinyusb exclusivamente como backend para USB-CDC, con configuración manual del stack USB. El dispositivo se comporta como consola estándar (stdin/stdout) sin interferencia de red.
+
+Lecciones aprendidas:
+	•	NO usar tinyusb_net / tusb_ncm: Provoca conflictos con consola y flashing, limita compatibilidad.
+	•	NO mapear VFS al UART físico (UART_NUM_0) si usamos USB-CDC.
+	•	NO usar uart_read_bytes con USB-CDC: no detecta input desde idf.py monitor.
+
+Solución robusta:
+
+Usamos select() sobre stdin (VFS) para detectar entrada de usuario de forma no bloqueante. Esto permite:
+	•	Menú BIOS interactivo al boot si se presiona tecla.
+	•	Portabilidad entre USB o UART físico (sin cambiar código).
+	•	Integración limpia con idf.py monitor.
+
+🔧 Flujo de Boot
+	1.	Boot
+	2.	Espera 5 segundos en BIOS:
+	•	Si usuario presiona tecla → menú interactivo.
+	•	Si no → arranque normal con config desde NVS.
+	3.	Inicio de operación y comunicación.
+
+🧬 Componentes principales
+	•	main/: Entrada app_main.
+	•	components/
+	•	bios_config_aq/: Config interactiva y persistencia NVS.
+	•	usb_cdc_aq/: Configuración USB CDC vía esp_tinyusb.
+	•	system_aq/: Inicialización del sistema.
+	•	json_parser_aq/: Validación de estructuras JSON.
+	•	mqtt_client_aq/: Publicación y recepción MQTT.
+	•	logic_aq/: SAFE/NORMAL mode.
+	•	hw/: Abstracción de sensores y actuadores.
+
+🧭 Flujo de trabajo modular
+	1.	El ESP32 al arrancar consulta si hay entrada por stdin.
+	2.	Si hay tecla presionada, lanza menú interactivo (BIOS).
+	3.	Si no, carga parámetros de NVS y comienza la operación.
+	4.	Se conecta por MQTT (USB o WiFi) y empieza a emitir:
+	•	Heartbeats
+	•	Status
+	•	Sensor_data
+	5.	Recibe comandos y responde con ACK.
+
+🧪 Validación de JSONs
+
+RPi mantiene una base de datos SQLite con los esquemas de validación:
+	•	schemas.db con tabla esquemas
+	•	Scripts CLI para validar:
+	•	validarjson –esquema sensor_data
+	•	validarjson –esquema comando_control –archivo custom.json
+
+📡 Estructura de Tópicos MQTT
+
+Raíz: acuario/
+
+Publicaciones ESP32:
+	•	acuario/sensor/dc/temperatura
+	•	acuario/status/dc
+	•	acuario/ack/dc/bomba_retorno
+
+Comandos RPi:
+	•	acuario/comando/dc/bomba_retorno
+	•	acuario/comando/io/valvula_sump
+
+Ejemplo:
+	1.	ESP32 publica sensor
+	2.	RPi envía comando
+	3.	ESP32 responde con ACK
+
+📁 Estructura complementaria en RPi
+	•	jsons/: JSONs de prueba
+	•	scripts/: CLI para validación
+	•	validador_json/: Lógica y setup
+	•	setup.sh: Script automatizado de entorno
+
+✅ Próximos pasos
+	•	Consolidar NCM en segunda fase
+	•	Integrar setup de red dinámico vía config BIOS
+	•	Estabilizar lógica SAFE MODE local
+	•	Proteger flashing con modo recovery
